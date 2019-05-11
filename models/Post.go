@@ -1,11 +1,11 @@
-package models 
+package models
 
 type Post struct {
-	Id string
-	Title string 
+	Id      int
+	Title   string
 	Content string
 }
 
-func NewPost(id, title, content string) *Post {
+func NewPost(id int, title string, content string) *Post {
 	return &Post{id, title, content}
 }
