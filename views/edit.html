@@ -4,7 +4,11 @@
 	<div class="col-xs-2">
 	</div>
 	<div class="col-xs-4">
-		<form role="form" method="POST" action="/SavePost">
+		{{if .Id}}
+			<form role="form" method="POST" action="/EditPost">
+		{{else}}
+			<form role="form" method="POST" action="/SavePost">
+		{{end}}
 			<input type="hidden" name="id" value="{{.Id}}" />
 			<div class="form-group">
 				<label>Title</label>

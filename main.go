@@ -1,26 +1,17 @@
 package main
 
 import (
-	"fmt"
-	"log"
 	"net/http"
-	"strconv"
 
 	"blog/models"
 
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/render"
 
-	"database/sql"
-
 	_ "github.com/lib/pq"
 )
 
-var posts map[int]*models.Post
-
 func main() {
-
-	posts = make(map[int]*models.Post, 0)
 
 	m := martini.Classic()
 
@@ -32,7 +23,6 @@ func main() {
 		IndentJSON: true,                       // Output human readable JSON
 	}))
 
-	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("./assets/"))))
 	staticOptions := martini.StaticOptions{Prefix: "assets"}
 	m.Use(martini.Static("assets", staticOptions))
 	m.Get("/", indexHandler)
@@ -40,26 +30,13 @@ func main() {
 	m.Get("/edit/:id", editHandler)
 	m.Get("/delete/:id", deleteHandler)
 	m.Post("/SavePost", savePostHandler)
+	m.Post("/EditPost", editPostHandler)
 
 	m.Run()
 }
 
 func indexHandler(rnd render.Render) {
-	connStr := "user=vrailean password=******** dbname=blog_db host=localhost sslmode=disable"
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-
-	rows, err := db.Query("SELECT id, title, content FROM posts")
-	var id int
-	var title, content string
-	for rows.Next() {
-		rows.Scan(&id, &title, &content)
-		post := models.NewPost(id, title, content)
-		posts[post.Id] = post
-	}
+	posts := models.AllPosts()
 
 	rnd.HTML(200, "index", posts)
 }
@@ -71,90 +48,50 @@ func writeHandler(rnd render.Render) {
 func editHandler(rnd render.Render, params martini.Params) {
 	id := params["id"]
 
-	convertedID, err := strconv.Atoi(id)
-	if err != nil {
-		fmt.Println(err)
-	}
-	post, found := posts[convertedID]
+	post := models.FindPost(id)
 
-	if !found {
+	if post == nil {
 		rnd.Redirect("/")
-		return
 	}
 
 	rnd.HTML(200, "edit", post)
 }
 
 func deleteHandler(rnd render.Render, params martini.Params) {
-	connStr := "user=vrailean password=5B34b4ddcc dbname=blog_db host=localhost sslmode=disable"
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-
 	id := params["id"]
 
-	if id == "" {
-		rnd.Redirect("/")
-	}
+	err := models.DeletePost(id)
 
-	convertedID, err := strconv.Atoi(id)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	delete(posts, convertedID)
-	sqlStatement := `
-	DELETE FROM posts where id = $1
-	`
-	_, err = db.Exec(sqlStatement, convertedID)
 	if err != nil {
 		panic(err)
 	}
 
 	rnd.Redirect("/")
+}
 
+func editPostHandler(rnd render.Render, r *http.Request) {
+	params := make(map[string]string)
+	params["id"] = r.FormValue("id")
+	params["title"] = r.FormValue("title")
+	params["content"] = r.FormValue("content")
+
+	err := models.UpdatePost(params)
+
+	if err != nil {
+		panic(err)
+	}
+
+	rnd.Redirect("/")
 }
 
 func savePostHandler(rnd render.Render, r *http.Request) {
-	connStr := "user=vrailean password=5B34b4ddcc dbname=blog_db host=localhost sslmode=disable"
-	db, err := sql.Open("postgres", connStr)
+	params := make(map[string]string)
+	params["title"] = r.FormValue("title")
+	params["content"] = r.FormValue("content")
+
+	err := models.CreatePost(params)
 	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-
-	id := r.FormValue("id")
-	title := r.FormValue("title")
-	content := r.FormValue("content")
-
-	if id != "" {
-
-		convertedID, err := strconv.Atoi(id)
-		if err != nil {
-			fmt.Println(err)
-		}
-		sqlStatement := `
-	UPDATE posts
-	SET title = $2, content = $3
-	WHERE id = $1;
-	`
-		_, err = db.Exec(sqlStatement, convertedID, title, content)
-		if err != nil {
-			panic(err)
-		}
-
-	} else {
-		sqlStatement := `
-		INSERT INTO posts (title, content) 
-		VALUES ($1, $2)
-		`
-
-		_, err = db.Exec(sqlStatement, title, content)
-		if err != nil {
-			panic(err)
-		}
+		panic(err)
 	}
 
 	rnd.Redirect("/")
